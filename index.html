@@ -263,6 +263,7 @@ const app = {
     const gs = new Set();
     for (const ch of this.channels)
       for (const g of (ch.group || '').split(',')) { const t = g.trim(); if (t) gs.add(t); }
+    for (const g of Object.keys(this.stats)) if (g) gs.add(g);
     this.allGroups = [...gs].sort();
     if (!this.selected.size) this.selected = new Set(this.allGroups);
     for (const g of this.selected) if (!gs.has(g)) this.selected.delete(g);
@@ -288,6 +289,9 @@ const app = {
         if (!g || !this.selected.has(g)) continue;
         if (!groups[g]) groups[g] = {};
       }
+    }
+    for (const g of Object.keys(this.stats)) {
+      if (g && this.selected.has(g) && !groups[g]) groups[g] = {};
     }
     for (const [g, grp] of Object.entries(groups)) {
       const s = this.stats[g];

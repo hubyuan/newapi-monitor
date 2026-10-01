@@ -76,14 +76,18 @@ def _build_stats():
             return _cache['stats']
 
     now = int(time.time())
-    channels = _get_channels()
 
-    all_groups = set()
-    for ch in channels:
-        for g in (ch.get('group') or '').split(','):
-            g = g.strip()
-            if g and g not in EXCLUDE_GROUPS:
-                all_groups.add(g)
+    try:
+        data = _api('/api/group/')
+        all_groups = set(g for g in data.get('data', []) if g and g not in EXCLUDE_GROUPS)
+    except Exception:
+        channels = _get_channels()
+        all_groups = set()
+        for ch in channels:
+            for g in (ch.get('group') or '').split(','):
+                g = g.strip()
+                if g and g not in EXCLUDE_GROUPS:
+                    all_groups.add(g)
 
     def _fetch_group(group):
         gq = urllib.parse.quote(group)
