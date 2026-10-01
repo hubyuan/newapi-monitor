@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分组监控</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #f0f2f5;
+    --surface: #ffffff;
+    --surface-2: #f7f8fb;
+    --surface-3: #eef0f4;
+    --fg: #111827;
+    --fg-2: #4b5563;
+    --fg-3: #9ca3af;
+    --border: #e5e7eb;
+    --border-s: #f0f1f3;
+    --ok: #059669;
+    --ok-bg: #ecfdf5;
+    --ok-dim: rgba(5,150,105,0.15);
+    --err: #dc2626;
+    --err-bg: #fef2f2;
+    --err-dim: rgba(220,38,38,0.2);
+    --warn: #d97706;
+    --warn-bg: #fffbeb;
+    --accent: #6366f1;
+    --accent-dim: rgba(99,102,241,0.5);
+    --radius: 14px;
+    --radius-s: 8px;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  }
+  @media (prefers-color-scheme:dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0d14; --surface: #141722; --surface-2: #1a1e2e; --surface-3: #222839;
+      --fg: #e5e7eb; --fg-2: #9ca3af; --fg-3: #4b5563;
+      --border: #1f2937; --border-s: #1a1e2e;
+      --ok: #34d399; --ok-bg: #064e3b; --ok-dim: rgba(52,211,153,0.18);
+      --err: #f87171; --err-bg: #450a0a; --err-dim: rgba(248,113,113,0.22);
+      --warn: #fbbf24; --warn-bg: #451a03;
+      --accent: #818cf8; --accent-dim: rgba(129,140,248,0.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b0d14; --surface: #141722; --surface-2: #1a1e2e; --surface-3: #222839;
+    --fg: #e5e7eb; --fg-2: #9ca3af; --fg-3: #4b5563;
+    --border: #1f2937; --border-s: #1a1e2e;
+    --ok: #34d399; --ok-bg: #064e3b; --ok-dim: rgba(52,211,153,0.18);
+    --err: #f87171; --err-bg: #450a0a; --err-dim: rgba(248,113,113,0.22);
+    --warn: #fbbf24; --warn-bg: #451a03;
+    --accent: #818cf8; --accent-dim: rgba(129,140,248,0.5);
+    color-scheme: dark;
+  }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans);
+    padding-inline: 16px; padding-block: 0; -webkit-font-smoothing: antialiased;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  .hdr {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    margin-inline: -16px; padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  .hdr-l { display: flex; align-items: center; gap: 10px; }
+  .hdr h1 { font-size: 18px; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+  .hdr-r { display: flex; align-items: center; gap: 8px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+  .badge-ok { background: var(--ok-bg); color: var(--ok); }
+  .badge-err { background: var(--err-bg); color: var(--err); }
+  .badge-wait { background: var(--warn-bg); color: var(--warn); }
+  .cd { font-family: var(--mono); font-size: 12px; color: var(--fg-3); min-width: 28px; text-align: right; font-variant-numeric: tabular-nums; }
+  .ibtn {
+    background: var(--surface-2); color: var(--fg-2); border: 1px solid var(--border);
+    border-radius: var(--radius-s); padding: 6px 8px; cursor: pointer;
+    display: inline-flex; align-items: center; transition: background 0.12s;
+  }
+  .ibtn:hover { background: var(--surface-3); color: var(--fg); }
+  .ibtn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .filter { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .pill { font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--fg-2); cursor: pointer; white-space: nowrap; transition: all 0.15s; user-select: none; font-family: inherit; }
+  .pill:hover { border-color: var(--accent); color: var(--accent); }
+  .pill.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .pill-all { font-size: 11px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--border-s); background: transparent; color: var(--fg-3); cursor: pointer; font-family: inherit; font-weight: 500; }
+  .pill-all:hover { color: var(--fg-2); border-color: var(--border); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-top: 16px; padding-bottom: 40px; }
+  @media (max-width: 420px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--surface); border: 1px solid var(--border-s); border-radius: var(--radius); overflow: hidden; }
+  .card-head { padding: 16px 20px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-name { font-size: 15px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-status { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; letter-spacing: 0.05em; text-transform: uppercase; flex-shrink: 0; }
+  .st-ok { background: var(--ok-bg); color: var(--ok); }
+  .st-warn { background: var(--warn-bg); color: var(--warn); }
+  .st-err { background: var(--err-bg); color: var(--err); }
+  .st-none { background: var(--surface-3); color: var(--fg-3); }
+
+  .card-hero { padding: 8px 20px 0; display: flex; align-items: baseline; justify-content: space-between; }
+  .hero-left { display: flex; align-items: baseline; gap: 4px; }
+  .hero-v { font-family: var(--mono); font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .hero-u { font-size: 14px; font-weight: 600; color: var(--fg-3); }
+  .hero-right { text-align: right; }
+  .hero-sub { font-family: var(--mono); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .hero-sub-l { font-size: 10px; color: var(--fg-3); font-weight: 600; margin-top: 1px; letter-spacing: 0.03em; }
+
+  .card-chart { padding: 10px 16px 0; position: relative; }
+  .chart-wrap { position: relative; height: 56px; }
+  .chart-wrap svg { display: block; width: 100%; height: 100%; }
+  .chart-legend { display: flex; gap: 12px; justify-content: flex-end; padding: 4px 4px 0; }
+  .chart-legend span { font-size: 9px; color: var(--fg-3); display: flex; align-items: center; gap: 3px; }
+  .chart-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+
+  .card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 10px 16px 0; border-radius: var(--radius-s); overflow: hidden; background: var(--border-s); }
+  .stat { background: var(--surface-2); padding: 9px 10px; text-align: center; }
+  .stat-v { font-family: var(--mono); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.3; }
+  .stat-l { font-size: 10px; color: var(--fg-3); font-weight: 600; margin-top: 2px; letter-spacing: 0.04em; }
+
+  .card-foot { padding: 8px 20px 14px; text-align: right; font-size: 11px; color: var(--fg-3); }
+
+  .c-ok { color: var(--ok); }
+  .c-err { color: var(--err); }
+  .c-warn { color: var(--warn); }
+
+  .empty { text-align: center; padding: 60px 20px; color: var(--fg-2); }
+  .empty h2 { font-size: 18px; margin: 0 0 8px; color: var(--fg); }
+  .empty p { font-size: 14px; margin: 4px auto 0; max-width: 420px; line-height: 1.6; }
+
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 600px) {
+    .hdr { padding: 10px 14px; }
+    .hero-v { font-size: 26px; }
+    .hero-sub { font-size: 15px; }
+    .grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-l">
+    <h1>分组监控</h1>
+    <span class="badge badge-wait" id="badge">连接中</span>
+  </div>
+  <div class="hdr-r">
+    <span class="cd" id="cd"></span>
+    <button class="ibtn" onclick="app.refresh()" title="刷新">
+      <svg id="rIcon" viewBox="0 0 24 24"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="filter" id="filterBar"></div>
+<div class="grid" id="grid" hidden></div>
+<div class="empty" id="empty"><h2>连接中…</h2></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+function fmtResp(sec) {
+  if (!sec) return '—';
+  return sec < 1 ? Math.round(sec * 1000) + 'ms' : sec.toFixed(1) + 's';
+}
+
+function renderChart(entries) {
+  if (!entries || entries.length < 3) return '';
+  const N = Math.min(Math.max(Math.floor(entries.length / 4), 8), 30);
+  const minTs = entries[0][0], maxTs = entries[entries.length - 1][0];
+  const range = maxTs - minTs || 1;
+
+  const bk = Array.from({length: N}, () => ({ok: 0, fail: 0, sumT: 0, cntT: 0}));
+  for (const [ts, ok, ut] of entries) {
+    const i = Math.min(Math.floor((ts - minTs) / range * N), N - 1);
+    if (ok) { bk[i].ok++; if (ut > 0) { bk[i].sumT += ut; bk[i].cntT++; } }
+    else bk[i].fail++;
+  }
+
+  const maxTotal = Math.max(...bk.map(b => b.ok + b.fail), 1);
+  const vw = 400, vh = 50, pad = 2;
+  const bw = (vw - pad * 2) / N;
+  const gap = Math.max(bw * 0.15, 1);
+  const barW = bw - gap;
+
+  let bars = '';
+  bk.forEach((b, i) => {
+    const total = b.ok + b.fail;
+    if (!total) return;
+    const x = pad + i * bw + gap / 2;
+    const h = (total / maxTotal) * (vh - 6);
+    const okH = (b.ok / total) * h;
+    const failH = h - okH;
+    const r = Math.min(barW / 4, 2);
+    if (okH > 0) bars += `<rect x="${x}" y="${vh - okH}" width="${barW}" height="${okH}" fill="var(--ok-dim)" rx="${r}"/>`;
+    if (failH > 0) bars += `<rect x="${x}" y="${vh - h}" width="${barW}" height="${failH}" fill="var(--err-dim)" rx="${r}"/>`;
+  });
+
+  const pts = bk.map((b, i) => b.cntT > 0 ? [pad + i * bw + barW / 2, b.sumT / b.cntT] : null).filter(Boolean);
+  let line = '';
+  if (pts.length > 1) {
+    const maxT = Math.max(...pts.map(p => p[1]), 0.01);
+    const coords = pts.map(p => `${p[0]},${vh - 4 - (p[1] / maxT) * (vh - 10)}`).join(' ');
+    line = `<polyline points="${coords}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>`;
+    pts.forEach(p => {
+      const cy = vh - 4 - (p[1] / maxT) * (vh - 10);
+      line += `<circle cx="${p[0]}" cy="${cy}" r="2" fill="var(--accent)" opacity="0.5"/>`;
+    });
+  }
+
+  return '<div class="card-chart">' +
+    '<div class="chart-wrap"><svg viewBox="0 0 ' + vw + ' ' + vh + '" preserveAspectRatio="none">' + bars + line + '</svg></div>' +
+    '<div class="chart-legend">' +
+      '<span><i style="background:var(--ok-dim)"></i>成功</span>' +
+      '<span><i style="background:var(--err-dim)"></i>失败</span>' +
+      '<span><i style="background:var(--accent)"></i>首字</span>' +
+    '</div>' +
+  '</div>';
+}
+
+const app = {
+  channels: [], stats: {}, selected: new Set(), allGroups: [],
+  timer: null, remaining: 0, interval: 300,
+
+  init() {
+    try { const r = localStorage.getItem('napi-mon-groups'); if (r) this.selected = new Set(JSON.parse(r)); } catch {}
+    this.refresh();
+  },
+  saveSel() { try { localStorage.setItem('napi-mon-groups', JSON.stringify([...this.selected])); } catch {} },
+
+  async refresh() {
+    this.stopTimer();
+    $('badge').textContent = '刷新中'; $('badge').className = 'badge badge-wait';
+    $('rIcon').classList.add('spin');
+    try {
+      const [chRes, stRes] = await Promise.all([
+        fetch('/data/channels').then(r => r.json()),
+        fetch('/data/stats').then(r => r.json())
+      ]);
+      if (chRes.error) throw new Error(chRes.error);
+      this.channels = chRes.channels || [];
+      this.stats = stRes.stats || {};
+      $('badge').textContent = '已连接'; $('badge').className = 'badge badge-ok';
+      this.discoverGroups(); this.render();
+    } catch (e) {
+      $('badge').textContent = '连接失败'; $('badge').className = 'badge badge-err';
+      $('empty').hidden = false;
+      $('empty').innerHTML = '<h2>无法连接</h2><p>' + esc(e.message) + '</p>';
+    } finally {
+      $('rIcon').classList.remove('spin'); this.startTimer();
+    }
+  },
+
+  discoverGroups() {
+    const gs = new Set();
+    for (const ch of this.channels)
+      for (const g of (ch.group || '').split(',')) { const t = g.trim(); if (t) gs.add(t); }
+    this.allGroups = [...gs].sort();
+    if (!this.selected.size) this.selected = new Set(this.allGroups);
+    for (const g of this.selected) if (!gs.has(g)) this.selected.delete(g);
+  },
+  toggleGroup(g) { if (this.selected.has(g)) this.selected.delete(g); else this.selected.add(g); this.saveSel(); this.render(); },
+  selectAll() {
+    if (this.allGroups.every(g => this.selected.has(g))) this.selected.clear();
+    else this.selected = new Set(this.allGroups);
+    this.saveSel(); this.render();
+  },
+  startTimer() {
+    if (!this.interval) return;
+    this.remaining = this.interval; $('cd').textContent = this.remaining + 's';
+    this.timer = setInterval(() => { this.remaining--; $('cd').textContent = this.remaining > 0 ? this.remaining + 's' : '…'; if (this.remaining <= 0) this.refresh(); }, 1000);
+  },
+  stopTimer() { if (this.timer) { clearInterval(this.timer); this.timer = null; } $('cd').textContent = ''; },
+
+  buildGroups() {
+    const groups = {};
+    for (const ch of this.channels) {
+      for (const raw of (ch.group || '').split(',')) {
+        const g = raw.trim();
+        if (!g || !this.selected.has(g)) continue;
+        if (!groups[g]) groups[g] = {};
+      }
+    }
+    for (const [g, grp] of Object.entries(groups)) {
+      const s = this.stats[g];
+      grp.rate = s ? s.rate : null;
+      grp.avgTime = s ? s.avg_time : null;
+      grp.success = s ? s.success : 0;
+      grp.fail = s ? s.fail : 0;
+      grp.totalReqs = s ? s.total_reqs : 0;
+      grp.entries = s ? s.entries : null;
+    }
+    return Object.entries(groups).sort((a, b) => {
+      const ra = a[1].rate !== null ? a[1].rate : 101;
+      const rb = b[1].rate !== null ? b[1].rate : 101;
+      return ra - rb;
+    });
+  },
+
+  render() {
+    const allOn = this.allGroups.length && this.allGroups.every(g => this.selected.has(g));
+    let fhtml = '<button class="pill-all" onclick="app.selectAll()">' + (allOn ? '取消全选' : '全选') + '</button>';
+    for (const g of this.allGroups)
+      fhtml += '<button class="pill' + (this.selected.has(g) ? ' on' : '') + '" onclick="app.toggleGroup(\'' + esc(g) + '\')">' + esc(g) + '</button>';
+    $('filterBar').innerHTML = fhtml;
+
+    const groups = this.buildGroups();
+    if (!groups.length) {
+      $('empty').hidden = false;
+      $('empty').innerHTML = '<h2>无选中分组</h2><p>请在上方选择至少一个分组</p>';
+      $('grid').hidden = true; return;
+    }
+    $('empty').hidden = true; $('grid').hidden = false;
+
+    $('grid').innerHTML = groups.map(([name, g]) => {
+      const rate = g.rate;
+      const hasData = rate !== null;
+      const rateC = !hasData ? '' : rate >= 90 ? 'c-ok' : rate >= 60 ? 'c-warn' : 'c-err';
+
+      let stClass, stText;
+      if (!hasData) { stClass = 'st-none'; stText = '无数据'; }
+      else if (rate >= 90) { stClass = 'st-ok'; stText = '正常'; }
+      else if (rate >= 60) { stClass = 'st-warn'; stText = '警告'; }
+      else { stClass = 'st-err'; stText = '异常'; }
+
+      return '<div class="card">' +
+        '<div class="card-head">' +
+          '<span class="card-name">' + esc(name) + '</span>' +
+          '<span class="card-status ' + stClass + '">' + stText + '</span>' +
+        '</div>' +
+        '<div class="card-hero">' +
+          '<div class="hero-left"><span class="hero-v ' + rateC + '">' + (hasData ? rate : '—') + '</span>' + (hasData ? '<span class="hero-u">%</span>' : '') + '</div>' +
+          '<div class="hero-right"><div class="hero-sub">' + fmtResp(g.avgTime) + '</div><div class="hero-sub-l">首字</div></div>' +
+        '</div>' +
+        renderChart(g.entries) +
+        '<div class="card-stats">' +
+          '<div class="stat"><div class="stat-v c-ok">' + g.success + '</div><div class="stat-l">成功</div></div>' +
+          '<div class="stat"><div class="stat-v' + (g.fail > 0 ? ' c-err' : '') + '">' + g.fail + '</div><div class="stat-l">失败</div></div>' +
+        '</div>' +
+        '<div class="card-foot">' + g.totalReqs + ' 次请求</div>' +
+      '</div>';
+    }).join('');
+  },
+};
+app.init();
+</script>
+</body>
+</html>
