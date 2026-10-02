@@ -196,7 +196,7 @@ function renderChart(entries) {
     const total = b.ok + b.fail;
     if (!total) return;
     const x = pad + i * bw + gap / 2;
-    const h = (total / maxTotal) * (vh - 6);
+    const h = Math.max((total / maxTotal) * (vh - 6), 4);
     const okH = (b.ok / total) * h;
     const failH = h - okH;
     const r = Math.min(barW / 4, 2);
